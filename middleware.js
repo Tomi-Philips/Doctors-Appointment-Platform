@@ -1,31 +1,37 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { updateSession } from "@/lib/supabase/middleware";
 
-const isProtectedRoute = createRouteMatcher([
-  "/doctors(.*)",
-  "/onboarding(.*)",
-  "/doctor(.*)",
-  "/admin(.*)",
-  "/video-call(.*)",
-  "/appointments(.*)",
-]);
+export async function middleware(request) {
+  const { supabase, user, supabaseResponse } = await updateSession(request);
 
-export default clerkMiddleware(async (auth, req) => {
-  const { userId } = await auth();
+  // Define protected routes (same as Clerk setup)
+  const isProtectedRoute =
+    request.nextUrl.pathname.startsWith("/doctors") ||
+    request.nextUrl.pathname.startsWith("/onboarding") ||
+    request.nextUrl.pathname.startsWith("/doctor") ||
+    request.nextUrl.pathname.startsWith("/admin") ||
+    request.nextUrl.pathname.startsWith("/video-call") ||
+    request.nextUrl.pathname.startsWith("/appointments");
 
-  if (!userId && isProtectedRoute(req)) {
-    const { redirectToSignIn } = await auth();
-    return redirectToSignIn();
+  // If the route is protected and the user is NOT logged in, redirect to login
+  if (isProtectedRoute && !user) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/sign-in"; // Adjust this based on your Supabase Auth UI path
+    return NextResponse.redirect(url);
   }
 
-  return NextResponse.next();
-});
+  return supabaseResponse;
+}
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    // Always run for API routes
-    "/(api|trpc)(.*)",
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * Feel free to modify this pattern to include more paths.
+     */
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

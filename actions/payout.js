@@ -1,7 +1,7 @@
 "use server";
 
+import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/prisma";
-import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 
 const CREDIT_VALUE = 10; // $10 per credit total
@@ -12,16 +12,17 @@ const DOCTOR_EARNINGS_PER_CREDIT = 8; // $8 to doctor
  * Request payout for all remaining credits
  */
 export async function requestPayout(formData) {
-  const { userId } = await auth();
+  const supabase = await createClient();
+  const { data: { user: authUser } } = await supabase.auth.getUser();
 
-  if (!userId) {
+  if (!authUser) {
     throw new Error("Unauthorized");
   }
 
   try {
     const doctor = await db.user.findUnique({
       where: {
-        clerkUserId: userId,
+        supabaseUserId: authUser.id,
         role: "DOCTOR",
       },
     });
@@ -90,16 +91,17 @@ export async function requestPayout(formData) {
  * Get doctor's payout history
  */
 export async function getDoctorPayouts() {
-  const { userId } = await auth();
+  const supabase = await createClient();
+  const { data: { user: authUser } } = await supabase.auth.getUser();
 
-  if (!userId) {
+  if (!authUser) {
     throw new Error("Unauthorized");
   }
 
   try {
     const doctor = await db.user.findUnique({
       where: {
-        clerkUserId: userId,
+        supabaseUserId: authUser.id,
         role: "DOCTOR",
       },
     });
@@ -127,16 +129,17 @@ export async function getDoctorPayouts() {
  * Get doctor's earnings summary
  */
 export async function getDoctorEarnings() {
-  const { userId } = await auth();
+  const supabase = await createClient();
+  const { data: { user: authUser } } = await supabase.auth.getUser();
 
-  if (!userId) {
+  if (!authUser) {
     throw new Error("Unauthorized");
   }
 
   try {
     const doctor = await db.user.findUnique({
       where: {
-        clerkUserId: userId,
+        supabaseUserId: authUser.id,
         role: "DOCTOR",
       },
     });

@@ -1,23 +1,24 @@
 "use server";
 
+import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/prisma";
-import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 
 /**
  * Verifies if current user has admin role
  */
 export async function verifyAdmin() {
-  const { userId } = await auth();
+  const supabase = await createClient();
+  const { data: { user: authUser } } = await supabase.auth.getUser();
 
-  if (!userId) {
+  if (!authUser) {
     return false;
   }
 
   try {
     const user = await db.user.findUnique({
       where: {
-        clerkUserId: userId,
+        supabaseUserId: authUser.id,
       },
     });
 
@@ -192,10 +193,12 @@ export async function approvePayout(formData) {
   }
 
   try {
-    // Get admin user info
-    const { userId } = await auth();
+    // Get admin user info from Supabase
+    const supabase = await createClient();
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+
     const admin = await db.user.findUnique({
-      where: { clerkUserId: userId },
+      where: { supabaseUserId: authUser?.id },
     });
 
     // Find the payout request

@@ -1,28 +1,21 @@
 "use server";
 
+import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/prisma";
-import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { deductCreditsForAppointment } from "@/actions/credits";
-import { Vonage } from "@vonage/server-sdk";
+// Jitsi Meet doesn't require a server-side SDK for basic usage
+// We will just generate unique room names
 import { addDays, addMinutes, format, isBefore, endOfDay } from "date-fns";
-import { Auth } from "@vonage/auth";
-
-// Initialize Vonage Video API client
-const credentials = new Auth({
-  applicationId: process.env.NEXT_PUBLIC_VONAGE_APPLICATION_ID,
-  privateKey: process.env.VONAGE_PRIVATE_KEY,
-});
-const options = {};
-const vonage = new Vonage(credentials, options);
 
 /**
  * Book a new appointment with a doctor
  */
 export async function bookAppointment(formData) {
-  const { userId } = await auth();
+  const supabase = await createClient();
+  const { data: { user: authUser } } = await supabase.auth.getUser();
 
-  if (!userId) {
+  if (!authUser) {
     throw new Error("Unauthorized");
   }
 
@@ -30,7 +23,7 @@ export async function bookAppointment(formData) {
     // Get the patient user
     const patient = await db.user.findUnique({
       where: {
-        clerkUserId: userId,
+        supabaseUserId: authUser.id,
         role: "PATIENT",
       },
     });
@@ -109,8 +102,8 @@ export async function bookAppointment(formData) {
       throw new Error("This time slot is already booked");
     }
 
-    // Create a new Vonage Video API session
-    const sessionId = await createVideoSession();
+    // Create a new Jitsi Meet room name
+    const sessionId = `medimeet-room-${Math.random().toString(36).substring(2, 12)}`;
 
     // Deduct credits from patient and add to doctor
     const { success, error } = await deductCreditsForAppointment(
@@ -144,15 +137,10 @@ export async function bookAppointment(formData) {
 }
 
 /**
- * Generate a Vonage Video API session
+ * Jitsi doesn't need session creation on the server for basic rooms
  */
 async function createVideoSession() {
-  try {
-    const session = await vonage.video.createSession({ mediaMode: "routed" });
-    return session.sessionId;
-  } catch (error) {
-    throw new Error("Failed to create video session: " + error.message);
-  }
+  return `medimeet-room-${Math.random().toString(36).substring(2, 12)}`;
 }
 
 /**
@@ -160,16 +148,17 @@ async function createVideoSession() {
  * This will be called when either doctor or patient is about to join the call
  */
 export async function generateVideoToken(formData) {
-  const { userId } = await auth();
+  const supabase = await createClient();
+  const { data: { user: authUser } } = await supabase.auth.getUser();
 
-  if (!userId) {
+  if (!authUser) {
     throw new Error("Unauthorized");
   }
 
   try {
     const user = await db.user.findUnique({
       where: {
-        clerkUserId: userId,
+        supabaseUserId: authUser.id,
       },
     });
 
@@ -215,44 +204,19 @@ export async function generateVideoToken(formData) {
       );
     }
 
-    // Generate a token for the video session
-    // Token expires 2 hours after the appointment start time
-    const appointmentEndTime = new Date(appointment.endTime);
-    const expirationTime =
-      Math.floor(appointmentEndTime.getTime() / 1000) + 60 * 60; // 1 hour after end time
-
-    // Use user's name and role as connection data
-    const connectionData = JSON.stringify({
-      name: user.name,
-      role: user.role,
-      userId: user.id,
-    });
-
-    // Generate the token with appropriate role and expiration
-    const token = vonage.video.generateClientToken(appointment.videoSessionId, {
-      role: "publisher", // Both doctor and patient can publish streams
-      expireTime: expirationTime,
-      data: connectionData,
-    });
-
-    // Update the appointment with the token
-    await db.appointment.update({
-      where: {
-        id: appointmentId,
-      },
-      data: {
-        videoSessionToken: token,
-      },
-    });
+    // Jitsi doesn't require tokens for the public instance
+    // We just return the room name which is stored in videoSessionId
+    const roomName = appointment.videoSessionId;
 
     return {
       success: true,
-      videoSessionId: appointment.videoSessionId,
-      token: token,
+      videoSessionId: roomName,
+      roomName: roomName,
+      userName: user.name,
     };
   } catch (error) {
-    console.error("Failed to generate video token:", error);
-    throw new Error("Failed to generate video token:" + error.message);
+    console.error("Failed to prepare video call:", error);
+    throw new Error("Failed to prepare video call: " + error.message);
   }
 }
 

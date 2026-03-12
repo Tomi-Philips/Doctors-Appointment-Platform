@@ -1,21 +1,16 @@
-import React from "react";
-import { Button } from "./ui/button";
-import {
-  Calendar,
-  CreditCard,
-  ShieldCheck,
-  Stethoscope,
-  User,
-} from "lucide-react";
+import { Calendar, CreditCard, ShieldCheck, Stethoscope, User, LogOut } from "lucide-react";
 import Link from "next/link";
-import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
 import { checkUser } from "@/lib/checkUser";
 import { Badge } from "./ui/badge";
 import { checkAndAllocateCredits } from "@/actions/credits";
 import Image from "next/image";
+import { createClient } from "@/lib/supabase/server";
+import { Button } from "./ui/button";
 
 export default async function Header() {
   const user = await checkUser();
+  const supabase = await createClient();
+
   if (user?.role === "PATIENT") {
     await checkAndAllocateCredits(user);
   }
@@ -35,71 +30,61 @@ export default async function Header() {
 
         {/* Action Buttons */}
         <div className="flex items-center space-x-2">
-          <SignedIn>
-            {/* Admin Links */}
-            {user?.role === "ADMIN" && (
-              <Link href="/admin">
-                <Button
-                  variant="outline"
-                  className="hidden md:inline-flex items-center gap-2"
-                >
-                  <ShieldCheck className="h-4 w-4" />
-                  Admin Dashboard
-                </Button>
-                <Button variant="ghost" className="md:hidden w-10 h-10 p-0">
-                  <ShieldCheck className="h-4 w-4" />
-                </Button>
-              </Link>
-            )}
+          {user && (
+            <>
+              {/* Admin Links */}
+              {user.role === "ADMIN" && (
+                <Link href="/admin">
+                  <Button
+                    variant="outline"
+                    className="hidden md:inline-flex items-center gap-2"
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+                    Admin Dashboard
+                  </Button>
+                </Link>
+              )}
 
-            {/* Doctor Links */}
-            {user?.role === "DOCTOR" && (
-              <Link href="/doctor">
-                <Button
-                  variant="outline"
-                  className="hidden md:inline-flex items-center gap-2"
-                >
-                  <Stethoscope className="h-4 w-4" />
-                  Doctor Dashboard
-                </Button>
-                <Button variant="ghost" className="md:hidden w-10 h-10 p-0">
-                  <Stethoscope className="h-4 w-4" />
-                </Button>
-              </Link>
-            )}
+              {/* Doctor Links */}
+              {user.role === "DOCTOR" && (
+                <Link href="/doctor">
+                  <Button
+                    variant="outline"
+                    className="hidden md:inline-flex items-center gap-2"
+                  >
+                    <Stethoscope className="h-4 w-4" />
+                    Doctor Dashboard
+                  </Button>
+                </Link>
+              )}
 
-            {/* Patient Links */}
-            {user?.role === "PATIENT" && (
-              <Link href="/appointments">
-                <Button
-                  variant="outline"
-                  className="hidden md:inline-flex items-center gap-2"
-                >
-                  <Calendar className="h-4 w-4" />
-                  My Appointments
-                </Button>
-                <Button variant="ghost" className="md:hidden w-10 h-10 p-0">
-                  <Calendar className="h-4 w-4" />
-                </Button>
-              </Link>
-            )}
+              {/* Patient Links */}
+              {user.role === "PATIENT" && (
+                <Link href="/appointments">
+                  <Button
+                    variant="outline"
+                    className="hidden md:inline-flex items-center gap-2"
+                  >
+                    <Calendar className="h-4 w-4" />
+                    My Appointments
+                  </Button>
+                </Link>
+              )}
 
-            {/* Unassigned Role */}
-            {user?.role === "UNASSIGNED" && (
-              <Link href="/onboarding">
-                <Button
-                  variant="outline"
-                  className="hidden md:inline-flex items-center gap-2"
-                >
-                  <User className="h-4 w-4" />
-                  Complete Profile
-                </Button>
-                <Button variant="ghost" className="md:hidden w-10 h-10 p-0">
-                  <User className="h-4 w-4" />
-                </Button>
-              </Link>
-            )}
-          </SignedIn>
+              {/* Unassigned Role */}
+              {user.role === "UNASSIGNED" && (
+                <Link href="/onboarding">
+                  <Button
+                    variant="outline"
+                    className="hidden md:inline-flex items-center gap-2"
+                  >
+                    <User className="h-4 w-4" />
+                    Complete Profile
+                  </Button>
+                </Link>
+              )}
+            </>
+          )}
 
           {(!user || user?.role !== "ADMIN") && (
             <Link href={user?.role === "PATIENT" ? "/pricing" : "/doctor"}>
@@ -126,24 +111,23 @@ export default async function Header() {
             </Link>
           )}
 
-          <SignedOut>
-            <SignInButton>
+          {!user ? (
+            <Link href="/sign-in">
               <Button variant="secondary">Sign In</Button>
-            </SignInButton>
-          </SignedOut>
-
-          <SignedIn>
-            <UserButton
-              appearance={{
-                elements: {
-                  avatarBox: "w-10 h-10",
-                  userButtonPopoverCard: "shadow-xl",
-                  userPreviewMainIdentifier: "font-semibold",
-                },
-              }}
-              afterSignOutUrl="/"
-            />
-          </SignedIn>
+            </Link>
+          ) : (
+            <div className="flex items-center gap-4">
+              {/* Simplified logout for now */}
+              <form action="/auth/signout" method="post">
+                <Button variant="ghost" size="icon" type="submit">
+                  <LogOut className="h-5 w-5" />
+                </Button>
+              </form>
+              <div className="w-10 h-10 rounded-full overflow-hidden border">
+                <img src={user.imageUrl} alt={user.name} className="w-full h-full object-cover" />
+              </div>
+            </div>
+          )}
         </div>
       </nav>
     </header>

@@ -1,22 +1,25 @@
 "use server";
 
 import { db } from "@/lib/prisma";
-import { auth } from "@clerk/nextjs/server";
+import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
 /**
  * Sets the user's role and related information
  */
 export async function setUserRole(formData) {
-  const { userId } = await auth();
+  const supabase = await createClient();
+  const { data: { user: authUser } } = await supabase.auth.getUser();
 
-  if (!userId) {
+  if (!authUser) {
     throw new Error("Unauthorized");
   }
 
+  const userId = authUser.id;
+
   // Find user in our database
   const user = await db.user.findUnique({
-    where: { clerkUserId: userId },
+    where: { supabaseUserId: userId },
   });
 
   if (!user) throw new Error("User not found in database");
@@ -32,7 +35,7 @@ export async function setUserRole(formData) {
     if (role === "PATIENT") {
       await db.user.update({
         where: {
-          clerkUserId: userId,
+          supabaseUserId: userId,
         },
         data: {
           role: "PATIENT",
@@ -57,7 +60,7 @@ export async function setUserRole(formData) {
 
       await db.user.update({
         where: {
-          clerkUserId: userId,
+          supabaseUserId: userId,
         },
         data: {
           role: "DOCTOR",
@@ -82,16 +85,19 @@ export async function setUserRole(formData) {
  * Gets the current user's complete profile information
  */
 export async function getCurrentUser() {
-  const { userId } = await auth();
+  const supabase = await createClient();
+  const { data: { user: authUser } } = await supabase.auth.getUser();
 
-  if (!userId) {
+  if (!authUser) {
     return null;
   }
+
+  const userId = authUser.id;
 
   try {
     const user = await db.user.findUnique({
       where: {
-        clerkUserId: userId,
+        supabaseUserId: userId,
       },
     });
 

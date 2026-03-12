@@ -196,9 +196,9 @@ export function AppointmentCard({
 
   useEffect(() => {
     if (tokenData?.success) {
-      // Redirect to video call page with token and session ID
+      // Redirect to video call page with Jitsi room name and user name
       router.push(
-        `/video-call?sessionId=${tokenData.videoSessionId}&token=${tokenData.token}&appointmentId=${appointment.id}`
+        `/video-call?roomName=${tokenData.roomName}&userName=${tokenData.userName}&appointmentId=${appointment.id}`
       );
     } else if (tokenData?.error) {
       setAction(null);

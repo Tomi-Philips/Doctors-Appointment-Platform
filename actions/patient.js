@@ -1,20 +1,23 @@
+"use server";
+
+import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/prisma";
-import { auth } from "@clerk/nextjs/server";
 
 /**
  * Get all appointments for the authenticated patient
  */
 export async function getPatientAppointments() {
-  const { userId } = await auth();
+  const supabase = await createClient();
+  const { data: { user: authUser } } = await supabase.auth.getUser();
 
-  if (!userId) {
+  if (!authUser) {
     throw new Error("Unauthorized");
   }
 
   try {
     const user = await db.user.findUnique({
       where: {
-        clerkUserId: userId,
+        supabaseUserId: authUser.id,
         role: "PATIENT",
       },
       select: {

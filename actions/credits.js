@@ -1,15 +1,15 @@
 "use server";
 
+import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/prisma";
-import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { format } from "date-fns";
 
 // Define credit allocations per plan
 const PLAN_CREDITS = {
-  free_user: 0, // Basic plan: 2 credits
-  standard: 10, // Standard plan: 10 credits per month
-  premium: 24, // Premium plan: 24 credits per month
+  FREE: 0,
+  STANDARD: 10,
+  PREMIUM: 24,
 };
 
 // Each appointment costs 2 credits
@@ -30,30 +30,13 @@ export async function checkAndAllocateCredits(user) {
       return user;
     }
 
-    // Check if user has a subscription
-    const { has } = await auth();
+    // Since we moved plans to the local database, we check the user object directly.
+    // user.plan is expected to be one of: "FREE", "STANDARD", "PREMIUM"
+    const currentPlan = user.plan || "FREE";
+    let creditsToAllocate = PLAN_CREDITS[currentPlan] || 0;
 
-    // Check which plan the user has
-    const hasBasic = has({ plan: "free_user" });
-    const hasStandard = has({ plan: "standard" });
-    const hasPremium = has({ plan: "premium" });
-
-    let currentPlan = null;
-    let creditsToAllocate = 0;
-
-    if (hasPremium) {
-      currentPlan = "premium";
-      creditsToAllocate = PLAN_CREDITS.premium;
-    } else if (hasStandard) {
-      currentPlan = "standard";
-      creditsToAllocate = PLAN_CREDITS.standard;
-    } else if (hasBasic) {
-      currentPlan = "free_user";
-      creditsToAllocate = PLAN_CREDITS.free_user;
-    }
-
-    // If user doesn't have any plan, just return the user
-    if (!currentPlan) {
+    // If user has the FREE plan (which allocates 0 additional monthly credits), just return
+    if (creditsToAllocate === 0) {
       return user;
     }
 
@@ -61,7 +44,7 @@ export async function checkAndAllocateCredits(user) {
     const currentMonth = format(new Date(), "yyyy-MM");
 
     // If there's a transaction this month, check if it's for the same plan
-    if (user.transactions.length > 0) {
+    if (user.transactions && user.transactions.length > 0) {
       const latestTransaction = user.transactions[0];
       const transactionMonth = format(
         new Date(latestTransaction.createdAt),
@@ -157,7 +140,7 @@ export async function deductCreditsForAppointment(userId, doctorId) {
         data: {
           userId: doctor.id,
           amount: APPOINTMENT_CREDIT_COST,
-          type: "APPOINTMENT_DEDUCTION", // Using same type for consistency
+          type: "APPOINTMENT_DEDUCTION",
         },
       });
 

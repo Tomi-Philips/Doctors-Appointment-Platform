@@ -1,16 +1,17 @@
 "use server";
 
 import { db } from "@/lib/prisma";
-import { auth } from "@clerk/nextjs/server";
+import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
 /**
  * Set doctor's availability slots
  */
 export async function setAvailabilitySlots(formData) {
-  const { userId } = await auth();
+  const supabase = await createClient();
+  const { data: { user: authUser } } = await supabase.auth.getUser();
 
-  if (!userId) {
+  if (!authUser) {
     throw new Error("Unauthorized");
   }
 
@@ -18,7 +19,7 @@ export async function setAvailabilitySlots(formData) {
     // Get the doctor
     const doctor = await db.user.findUnique({
       where: {
-        clerkUserId: userId,
+        supabaseUserId: authUser.id,
         role: "DOCTOR",
       },
     });
@@ -87,16 +88,17 @@ export async function setAvailabilitySlots(formData) {
  * Get doctor's current availability slots
  */
 export async function getDoctorAvailability() {
-  const { userId } = await auth();
+  const supabase = await createClient();
+  const { data: { user: authUser } } = await supabase.auth.getUser();
 
-  if (!userId) {
+  if (!authUser) {
     throw new Error("Unauthorized");
   }
 
   try {
     const doctor = await db.user.findUnique({
       where: {
-        clerkUserId: userId,
+        supabaseUserId: authUser.id,
         role: "DOCTOR",
       },
     });
@@ -125,16 +127,17 @@ export async function getDoctorAvailability() {
  */
 
 export async function getDoctorAppointments() {
-  const { userId } = await auth();
+  const supabase = await createClient();
+  const { data: { user: authUser } } = await supabase.auth.getUser();
 
-  if (!userId) {
+  if (!authUser) {
     throw new Error("Unauthorized");
   }
 
   try {
     const doctor = await db.user.findUnique({
       where: {
-        clerkUserId: userId,
+        supabaseUserId: authUser.id,
         role: "DOCTOR",
       },
     });
@@ -168,16 +171,17 @@ export async function getDoctorAppointments() {
  * Cancel an appointment (can be done by both doctor and patient)
  */
 export async function cancelAppointment(formData) {
-  const { userId } = await auth();
+  const supabase = await createClient();
+  const { data: { user: authUser } } = await supabase.auth.getUser();
 
-  if (!userId) {
+  if (!authUser) {
     throw new Error("Unauthorized");
   }
 
   try {
     const user = await db.user.findUnique({
       where: {
-        clerkUserId: userId,
+        supabaseUserId: authUser.id,
       },
     });
 
@@ -285,16 +289,17 @@ export async function cancelAppointment(formData) {
  * Add notes to an appointment
  */
 export async function addAppointmentNotes(formData) {
-  const { userId } = await auth();
+  const supabase = await createClient();
+  const { data: { user: authUser } } = await supabase.auth.getUser();
 
-  if (!userId) {
+  if (!authUser) {
     throw new Error("Unauthorized");
   }
 
   try {
     const doctor = await db.user.findUnique({
       where: {
-        clerkUserId: userId,
+        supabaseUserId: authUser.id,
         role: "DOCTOR",
       },
     });
@@ -344,16 +349,17 @@ export async function addAppointmentNotes(formData) {
  * Mark an appointment as completed (only by doctor after end time)
  */
 export async function markAppointmentCompleted(formData) {
-  const { userId } = await auth();
+  const supabase = await createClient();
+  const { data: { user: authUser } } = await supabase.auth.getUser();
 
-  if (!userId) {
+  if (!authUser) {
     throw new Error("Unauthorized");
   }
 
   try {
     const doctor = await db.user.findUnique({
       where: {
-        clerkUserId: userId,
+        supabaseUserId: authUser.id,
         role: "DOCTOR",
       },
     });
